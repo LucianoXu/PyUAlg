@@ -1,6 +1,6 @@
 # create the parser for the given signature
 
-from .core import Signature, Term
+from .core import Signature, Term, RewriteRule
 import ply.lex as lex, ply.yacc as yacc
 import re
 
@@ -16,13 +16,14 @@ class Parser:
             self.reserved[symbol] = f'TOK{i}'
 
 
-        self.tokens = ['ID'] + list(self.reserved.values())
+        self.tokens = ['ID', 'TO'] + list(self.reserved.values())
         self.literals = ['(', ')']
         def t_ID(t):
-            r'[a-zA-Z_][a-zA-Z_0-9]*'
+            r'[$a-zA-Z_][a-zA-Z_0-9]*'
             t.type = self.reserved.get(t.value, 'ID')
             return t
         self.t_ID = t_ID
+        self.t_TO = r'->'
 
         for symbol in sig.symbol_dict.keys():
             self.__dict__['t_' + self.reserved[symbol]] = re.escape(symbol)
@@ -48,7 +49,20 @@ class Parser:
 
         self.lexer = lex.lex(module=self, **kwargs)
 
+        def p_result(p):
+            '''
+            result  : expression 
+                    | rewriterule
+            '''
+            p[0] = p[1]
+        self.p_result = p_result
+
         # build the parser
+        def p_rewriterule(p):
+            'rewriterule : expression TO expression'
+            p[0] = RewriteRule(p[1], p[3])
+        self.p_rewriterule = p_rewriterule
+
         def p_ID(p):
             'expression : ID'
             p[0] = Term(p[1])
@@ -70,7 +84,7 @@ class Parser:
                     '''
             else:
                 def f(p):
-                    p[0] = Term(symbol, p[3:3 + arity])
+                    p[0] = Term(symbol, tuple(p[3:3 + arity]))
                 f.__doc__ = f'''
                     expression : '(' {self.reserved[symbol]} {"expression "*arity} ')'
                     '''
@@ -89,12 +103,19 @@ class Parser:
             
         self.p_error = p_error
 
-        self.start = 'expression'
+        self.start = 'result'
         self.parser = yacc.yacc(module=self, **kwargs)
 
-    def parse(self, input_string: str):
+    def parse_term(self, input_string: str) -> Term:
         res = self.parser.parse(input_string, lexer = self.lexer)
-        if not res:
-            raise ValueError(f"Parsing failed for the input string '{input_string}'")
+        if not isinstance(res, Term):
+            raise ValueError(f"Parsing failed for the input string '{input_string}' as a term.")
+
+        return res
+    
+    def parse_rewriterule(self, input_string: str) -> RewriteRule:
+        res = self.parser.parse(input_string, lexer = self.lexer)
+        if not isinstance(res, RewriteRule):
+            raise ValueError(f"Parsing failed for the input string '{input_string}' as a rewrite rule.")
 
         return res
