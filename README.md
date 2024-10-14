@@ -19,8 +19,13 @@ The constructor of the class. The input is the head symbol of the term and a tup
 #### `__eq__(other: Term) -> bool`
 #### `__str__() -> str`
 #### `sig_str(sig: Signature) -> str`
-#### `__getitem__(self, pos: int|tuple[int, ...])`
+#### `__getitem__(self, pos: tuple[int, ...])`
 Get the subterm of the term at the given position.
+#### `__setitem__(self, pos: tuple[int, ...], value: Term)`
+#### `all_nodes(self, pos_prefix : tuple[int, ...] = ()) -> set[tuple[tuple[int, ...], Term]]`
+#### `get_random_node(self) -> tuple[tuple[int, ...], Term]`
+#### `apply_at(self, opt: TermOpt, sig: Signature, pos: tuple[int, ...] = ()) -> Optional[Term]`
+
 
 ### `pyualg.unique() -> Term`
 A function to generate unique variable names.

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Callable, Literal, Optional
+from copy import deepcopy
+import random
 
 Property = Literal['Infix']
 
 RESERVED_TOKENS = {'(', ')', '->', 'ID'}
+
 
 class Signature:
     '''
@@ -89,16 +92,49 @@ class Term:
         else:
             return set().union(*[arg.vars(sig) for arg in self.args])
     
-    def __getitem__(self, pos: int|tuple[int, ...]) -> Term:
+    def __getitem__(self, pos: tuple[int, ...]) -> Term:
         '''
         getitem accepts a tuple of integers as the position and returns the corresponding subterm
         '''
-        if isinstance(pos, int):
-            return self.args[pos]
+        if not pos:
+            return self
+        return self.args[pos[0]][pos[1:]]
+        
+    def __setitem__(self, pos: tuple[int, ...], value: Term):
+        '''
+        setitem accepts a tuple of integers as the position and sets the corresponding subterm
+        '''
+        if not pos:
+            self = value
         else:
-            if not pos:
-                return self
-            return self.args[pos[0]][pos[1:]]
+            self.args[pos[0]][pos[1:]] = value
+
+    def all_nodes(self, pos_prefix : tuple[int, ...] = ()) -> set[tuple[tuple[int, ...], Term]]:
+        '''
+        Return all nodes in the term. Each node is represented by a tuple of the position and the term.
+        '''
+        res : set[tuple[tuple[int, ...], Term]] = set([(pos_prefix, self)])
+        for i, arg in enumerate(self.args):
+            res |= arg.all_nodes(pos_prefix + (i,))
+        return res
+    
+    def get_random_node(self) -> tuple[tuple[int, ...], Term]:
+        '''
+        Return a random node in the term
+        '''
+        return random.choice(list(self.all_nodes()))
+    
+    def apply_at(self, opt: TermOpt, sig: Signature, pos: tuple[int, ...] = ()) -> Optional[Term]:
+        '''
+        Apply the function opt to the term at the specified position.
+        '''
+        if not pos:
+            return opt(sig, self)
+        else:
+            subst_tree = self.args[pos[0]].apply_at(opt, sig, pos[1:])
+            if subst_tree is None:
+                return None
+            return Term(self.head, self.args[:pos[0]] + (subst_tree,) + self.args[pos[0] + 1:])
         
 VAR_COUNT = 0
 def unique() -> Term:
@@ -217,7 +253,7 @@ class RewriteRule:
             return None
         
         return matcher(self.rhs)
-    
+        
     def subst(self, subst: Subst) -> RewriteRule:
         return RewriteRule(subst(self.lhs), subst(self.rhs))
     
@@ -316,5 +352,8 @@ class TRS:
         return None
 
 
+
+TermOpt = Callable[[Signature, Term], Optional[Term]]
+
 __all__ = ['RESERVED_TOKENS', 'Property', 'Signature', 'Term', 'unique', 'Subst', 'MatchingProblem', 'RewriteRule',
-           'TRS']
+           'TRS', 'TermOpt']
